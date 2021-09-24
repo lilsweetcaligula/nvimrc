@@ -24,17 +24,7 @@ function main() {
         return cmdShowMenu()
       }
 
-      try {
-        cmdUseConfig(config_name)
-      } catch (err) {
-        if (err && err.code === 'ENOENT') {
-          console.error(`Couldn't find the nvimrc file: "${config_name}".`)
-        } else {
-          throw err
-        }
-      }
-      
-      return
+      return cmdUseConfig(config_name)
     })
     .parse(process.argv)
 }
@@ -54,6 +44,8 @@ function cmdShowMenu() {
       console.log(' ', config.name)
     }
   }
+
+  return process.exit(0)
 }
 
 
@@ -61,10 +53,8 @@ function cmdUseConfig(new_config_name) {
   const new_config_path = Path.join(NVIMRC_DIR_PROFILES, new_config_name)
 
   if (!Fs.existsSync(new_config_path)) {
-    const err = new Error()
-    err.code = 'ENOENT'
-
-    throw err
+    console.error(`Couldn't find the nvimrc file: "${config_name}".`)
+    return process.exit(1)
   }
 
 
@@ -95,6 +85,8 @@ function cmdUseConfig(new_config_name) {
   console.log(`Activating ${INIT_VIM} (${new_config_name})`)
 
   Fs.symlinkSync(new_config_path, ROOT_INIT_VIM)
+
+  return process.exit(0)
 }
 
 
