@@ -27,12 +27,14 @@ function main() {
       try {
         cmdUseConfig(config_name)
       } catch (err) {
-        if (err.code === 'ENOENT') {
+        if (err && err.code === 'ENOENT') {
           console.error(`Couldn't find the nvimrc file: "${config_name}".`)
         } else {
           throw err
         }
       }
+      
+      return
     })
     .parse(process.argv)
 }
@@ -56,26 +58,43 @@ function cmdShowMenu() {
 
 
 function cmdUseConfig(new_config_name) {
+  const new_config_path = Path.join(NVIMRC_DIR_PROFILES, new_config_name)
+
+  if (!Fs.existsSync(new_config_path)) {
+    const err = new Error()
+    err.code = 'ENOENT'
+
+    throw err
+  }
+
+
   const old_config_name = currentConfigName()
 
   console.log(`Removing old ${INIT_VIM}` +
     `${null == old_config_name ? '' : ' (' + old_config_name + ')'}`)
 
 
-  if (isFirstTime()) {
-    markAsNotFirstTime()
-    Fs.renameSync(ROOT_INIT_VIM, Path.join(NVIMRC_DIR, 'bk.' + INIT_VIM))
-  } else {
-    Fs.unlinkSync(ROOT_INIT_VIM)
+  try {
+    if (isFirstTime()) {
+      markAsNotFirstTime()
+      Fs.renameSync(ROOT_INIT_VIM, Path.join(NVIMRC_DIR, 'bk.' + INIT_VIM))
+    } else {
+      Fs.unlinkSync(ROOT_INIT_VIM)
+    }
+  } catch (err) {
+    if (err && err.code === 'ENOENT') {
+      // NOTE: If we are here, then the init.vim file was not found.
+      // We do nothing.
+      //
+    } else {
+      throw err
+    }
   }
 
 
   console.log(`Activating ${INIT_VIM} (${new_config_name})`)
 
-  Fs.symlinkSync(
-    Path.join(NVIMRC_DIR_PROFILES, new_config_name),
-    ROOT_INIT_VIM
-  )
+  Fs.symlinkSync(new_config_path, ROOT_INIT_VIM)
 }
 
 
@@ -103,16 +122,24 @@ function currentConfigName() {
     return null
   }
 
-  const init_vim_stat = Fs.statSync(ROOT_INIT_VIM)
-  const config_files = availableConfigFiles(NVIMRC_DIR_PROFILES)
+  try {
+    const init_vim_stat = Fs.statSync(ROOT_INIT_VIM)
+    const config_files = availableConfigFiles(NVIMRC_DIR_PROFILES)
 
-  for (const config of config_files) {
-    const config_stat = Fs.statSync(Path.join(NVIMRC_DIR_PROFILES, config.name))
-    const is_same = init_vim_stat.ino === config_stat.ino
+    for (const config of config_files) {
+      const config_stat = Fs.statSync(Path.join(NVIMRC_DIR_PROFILES, config.name))
+      const is_same = init_vim_stat.ino === config_stat.ino
 
-    if (is_same) {
-      return config.name
+      if (is_same) {
+        return config.name
+      }
     }
+  } catch (err) {
+    if (err && err.code === 'ENOENT') {
+      return null
+    }
+
+    throw err
   }
 
   return null
